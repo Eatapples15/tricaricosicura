@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Mappa Operativa Tricarico - PC</title>
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        body, html { height: 100%; margin: 0; padding: 0; font-family: Arial, sans-serif; }
+        #map { height: 100%; width: 100%; }
+        
+        /* Legenda in basso a destra */
+        .legend {
+            background: white; padding: 10px; border-radius: 5px;
+            box-shadow: 0 0 15px rgba(0,0,0,0.2);
+            font-size: 12px; line-height: 1.5;
+            position: absolute; bottom: 30px; right: 10px; z-index: 1000;
+        }
+        .legend i { width: 18px; }
+        
+        /* Stile icone custom */
+        .custom-flag {
+            text-align: center;
+            font-size: 24px;
+            text-shadow: 2px 2px 2px rgba(0,0,0,0.5);
+        }
+        .flag-red { color: #dc3545; }
+        .flag-orange { color: #fd7e14; }
+        .flag-green { color: #198754; }
+    </style>
+</head>
+<body>
+
+    <div id="map"></div>
+
+    <div class="legend">
+        <strong>Livelli Attenzione</strong><br>
+        <i class="fas fa-flag text-danger"></i> Priorità ALTA<br>
+        <i class="fas fa-flag text-warning"></i> Priorità MEDIA<br>
+        <hr class="my-1">
+        <strong>Zone Accessibilità</strong><br>
+        <span style="background:rgba(255,0,0,0.2); border:1px solid red; px-2">&nbsp;&nbsp;&nbsp;</span> Centro Storico (Difficile)<br>
+        <span style="background:rgba(0,255,0,0.1); border:1px solid green; px-2">&nbsp;&nbsp;&nbsp;</span> Periferia (Standard)
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
+    <script>
+        // --- 1. CONFIGURAZIONE INIZIALE ---
+        // Coordinate Tricarico (Piazza Garibaldi approx)
+        const tricaricoCenter = [40.6225, 16.1435]; 
+        const map = L.map('map').setView(tricaricoCenter, 15);
+
+        // Mappa base (OpenStreetMap)
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors',
+            maxZoom: 19
+        }).addTo(map);
+
+        // --- 2. DEFINIZIONE ZONE (POLIGONI) ---
+        
+        // ZONA ROSSA: Centro Storico (Esempio approssimativo Rabata/Saracena/Centro)
+        // Nota: Ho disegnato un poligono indicativo attorno al nucleo storico.
+        const zonaCentroStorico = [
+            [40.6245, 16.1410],
+            [40.6240, 16.1450],
+            [40.6220, 16.1465],
+            [40.6205, 16.1440],
+            [40.6210, 16.1400],
+            [40.6230, 16.1390]
+        ];
+
+        L.polygon(zonaCentroStorico, {
+            color: 'red',       // Bordo rosso
+            fillColor: '#f03',  // Riempimento rosso
+            fillOpacity: 0.2,   // Trasparenza (si vedono le case sotto)
+            weight: 2
+        }).addTo(map).bindPopup("<b>ZONA ROSSA (Centro Storico)</b><br>Accesso difficoltoso.<br>Richiesto mezzo 4x4 piccolo o a piedi.");
+
+        // ZONA VERDE: Periferia (Tutto ciò che è fuori, ma evidenziamo es. zona Calle/Appia)
+        // Per semplicità, qui non la disegno, ma tutto ciò che è fuori dal rosso è "standard".
+        
+        // --- 3. DEFINIZIONE ICONE BANDIERA ---
+        const FlagIcon = L.DivIcon.extend({
+            options: {
+                className: 'custom-flag',
+                iconSize: [30, 42],
+                iconAnchor: [15, 42], // La punta della bandiera tocca il punto
+                popupAnchor: [0, -40]
+            }
+        });
+
+        const flagRed = new FlagIcon({ html: '<i class="fas fa-flag flag-red"></i>' });
+        const flagOrange = new FlagIcon({ html: '<i class="fas fa-flag flag-orange"></i>' });
+        const flagGreen = new FlagIcon({ html: '<i class="fas fa-flag flag-green"></i>' });
+
+
+        // --- 4. CARICAMENTO DATI (Simulazione dati ricevuti dalla Segreteria) ---
+        // In produzione, questa parte viene sostituita dalla chiamata al Cloud JSONBin
+        const censiti = [
+            { 
+                nome: "Maria G. (Anziana)", 
+                lat: 40.6232, lng: 16.1425, 
+                prio: "Alta", 
+                note: "Vicolo stretto, scalini" 
+            }, // Cade nel centro storico
+            { 
+                nome: "Luigi R. (Dialisi)", 
+                lat: 40.6215, lng: 16.1480, 
+                prio: "Media", 
+                note: "Accesso carraio ampio" 
+            }, // Cade fuori (verso ospedale/periferia)
+            { 
+                nome: "Fam. Esposito", 
+                lat: 40.6225, lng: 16.1435, 
+                prio: "Alta", 
+                note: "Allettato piano terra" 
+            }
+        ];
+
+        // Ciclo per piazzare le bandiere
+        censiti.forEach(p => {
+            let iconaScelta;
+            if(p.prio === 'Alta') iconaScelta = flagRed;
+            else if(p.prio === 'Media') iconaScelta = flagOrange;
+            else iconaScelta = flagGreen;
+
+            L.marker([p.lat, p.lng], {icon: iconaScelta})
+                .addTo(map)
+                .bindPopup(`
+                    <div style="text-align:center">
+                        <strong>${p.nome}</strong><br>
+                        <span class="badge bg-${p.prio === 'Alta' ? '
